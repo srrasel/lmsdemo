@@ -279,12 +279,36 @@ export const slug = (string) => {
 }
 
 export const customPageData = cache(async (slug) => {
-    const getCustomPage = async (slug) => {
-        const { data } = await request.get(`${ENDPOINTS.CUSTOM_PAGE}/${slug}`);
+    const apiBaseUrl = getApiBaseUrl();
+    const isBuildPhase = process.env.NEXT_PHASE === 'phase-production-build';
 
-        return data;
+    if (isBuildPhase || !apiBaseUrl) {
+        return {
+            remark: 'success',
+            status: 'success',
+            message: null,
+            data: {
+                page: {
+                    name: slug,
+                    secs: [],
+                },
+                seo_content: null,
+                seo_image: null,
+            },
+        };
     }
-    return await getCustomPage(slug);
+
+    try {
+        const { data } = await request.get(`${ENDPOINTS.CUSTOM_PAGE}/${slug}`);
+        return data;
+    } catch {
+        return {
+            remark: 'page_not_found',
+            status: 'error',
+            message: null,
+            data: null,
+        };
+    }
 });
 
 export const notifyToast = (data) => {
