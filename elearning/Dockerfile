@@ -1,6 +1,7 @@
 FROM php:8.3-cli
 
 RUN apt-get update && apt-get install -y \
+    bash \
     git \
     unzip \
     zip \
@@ -27,4 +28,65 @@ WORKDIR /var/www/html
 COPY . .
 EXPOSE 8000
 
-CMD ["bash", "-lc", "set -euo pipefail\ncd /var/www/html/core\n\nif [ ! -f .env ]; then cp .env.example .env; fi\nln -sfn /var/www/html/assets /var/www/html/core/assets\n\nif [ -n \"${APP_KEY:-}\" ]; then\n  if grep -q \"^APP_KEY=\" .env; then\n    sed -i \"s/^APP_KEY=.*/APP_KEY=${APP_KEY}/\" .env\n  else\n    printf \"\\nAPP_KEY=%s\\n\" \"${APP_KEY}\" >> .env\n  fi\nfi\n\nexport DB_HOST=\"${DB_HOST:-db}\"\nexport DB_PORT=\"${DB_PORT:-3306}\"\nexport DB_DATABASE=\"${DB_DATABASE:-elearning}\"\nexport DB_USERNAME=\"${DB_USERNAME:-root}\"\nexport DB_PASSWORD=\"${DB_PASSWORD:-root}\"\n\nuntil php -r \"new PDO('mysql:host=' . getenv('DB_HOST') . ';port=' . getenv('DB_PORT') . ';dbname=' . getenv('DB_DATABASE'), getenv('DB_USERNAME'), getenv('DB_PASSWORD'));\" >/dev/null 2>&1; do echo waiting for mysql; sleep 2; done\n\ncomposer install --no-interaction --prefer-dist --optimize-autoloader --no-dev --no-scripts\ncomposer dump-autoload --optimize\nphp artisan package:discover --ansi\n\nif ! grep -q \"^APP_KEY=base64\" .env; then php artisan key:generate --force; fi\n\nphp artisan config:cache || true\nphp artisan view:cache || true\n\nphp artisan migrate --force\n\ncat > /tmp/router.php <<'PHP'\n<?php\n$path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?? '/';\n$file = '/var/www/html' . $path;\nif ($path !== '/' && is_file($file)) {\n    return false;\n}\nrequire '/var/www/html/index.php';\nPHP\n\nphp -S 0.0.0.0:8000 -t /var/www/html /tmp/router.php\"]
+RUN cat > /usr/local/bin/start-backend.sh <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd /var/www/html/core
+
+if [ ! -f .env ]; then
+  cp .env.example .env
+fi
+
+ln -sfn /var/www/html/assets /var/www/html/core/assets
+
+if [ -n "${APP_KEY:-}" ]; then
+  if grep -q "^APP_KEY=" .env; then
+    sed -i "s/^APP_KEY=.*/APP_KEY=${APP_KEY}/" .env
+  else
+    printf "\nAPP_KEY=%s\n" "${APP_KEY}" >> .env
+  fi
+fi
+
+export DB_HOST="${DB_HOST:-db}"
+export DB_PORT="${DB_PORT:-3306}"
+export DB_DATABASE="${DB_DATABASE:-elearning}"
+export DB_USERNAME="${DB_USERNAME:-root}"
+export DB_PASSWORD="${DB_PASSWORD:-root}"
+
+until php -r "new PDO('mysql:host=' . getenv('DB_HOST') . ';port=' . getenv('DB_PORT') . ';dbname=' . getenv('DB_DATABASE'), getenv('DB_USERNAME'), getenv('DB_PASSWORD'));" >/dev/null 2>&1; do
+  echo waiting for mysql
+  sleep 2
+done
+
+composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev --no-scripts
+composer dump-autoload --optimize
+php artisan package:discover --ansi
+
+if ! grep -q "^APP_KEY=base64" .env; then
+  php artisan key:generate --force
+fi
+
+php artisan config:cache || true
+php artisan view:cache || true
+
+php artisan migrate --force
+
+cat > /tmp/router.php <<'PHP'
+<?php
+$path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?? '/';
+$file = '/var/www/html' . $path;
+if ($path !== '/' && is_file($file)) {
+    return false;
+}
+require '/var/www/html/index.php';
+PHP
+
+php -S 0.0.0.0:8000 -t /var/www/html /tmp/router.php
+SH
+
+RUN sed -i 's/\r$//' /usr/local/bin/start-backend.sh
+
+RUN chmod +x /usr/local/bin/start-backend.sh
+
+CMD ["/usr/local/bin/start-backend.sh"]
