@@ -33,14 +33,21 @@ export const getFormData = (data) => {
 }
 
 export const getApiBaseUrl = () => {
-    if (typeof window === 'undefined') {
-        return process.env.API_URL_INTERNAL || process.env.NEXT_PUBLIC_API_URL;
+    const raw = typeof window === 'undefined'
+        ? (process.env.API_URL_INTERNAL || process.env.NEXT_PUBLIC_API_URL)
+        : process.env.NEXT_PUBLIC_API_URL;
+
+    if (!raw) {
+        return null;
     }
-    return process.env.NEXT_PUBLIC_API_URL;
+
+    return raw
+        .replace(/\/+$/, '')
+        .replace(/\/api$/, '');
 }
 
 export const request = axios.create({
-    baseURL: getApiBaseUrl(),
+    baseURL: getApiBaseUrl() || '',
 });
 
 request.interceptors.request.use(
@@ -221,19 +228,44 @@ export const getSEO = async ({
     url = null
 } = {}) => {
 
-    const globalSeo = await fetch(getApiBaseUrl() + ENDPOINTS.SEO, {
+    const apiBaseUrl = getApiBaseUrl();
+    const isBuildPhase = process.env.NEXT_PHASE === 'phase-production-build';
+
+    if (isBuildPhase || !apiBaseUrl) {
+        const metaTitle = title || getTitle('Home');
+        const fallback = {
+            title: metaTitle,
+            description,
+            keywords,
+            openGraph: {
+                title: metaTitle,
+                description,
+                type: 'website',
+                url: url || process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_API_URL,
+            },
+        };
+
+        if (image) {
+            fallback.openGraph.images = [image];
+        }
+
+        return fallback;
+    }
+
+    const globalSeo = await fetch(apiBaseUrl + ENDPOINTS.SEO, {
         next: { revalidate: 300 }
     }).then((res) => res.json());
     const seoContents = globalSeo?.data?.seo_content?.data_values;
+    const metaTitle = title || getTitle('Home');
     return {
-        title: title || getTitle('Home'),
+        title: metaTitle,
         description: description || seoContents?.description,
         keywords: keywords || seoContents?.keywords,
         openGraph: {
-            title: title || getTitle('Home'),
+            title: metaTitle,
             description: description || seoContents?.description,
             type: 'website',
-            url: url || process.env.NEXT_PUBLIC_API_URL,
+            url: url || process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_API_URL,
             images: [
                 image ? image : getImage() + 'seo/' + seoContents?.image
             ]
@@ -285,7 +317,8 @@ export function generateScript(script, shortcode) {
 
 /** Get image from backend url /assets/images/* */
 export function getImage() {
-    return `${process.env.NEXT_PUBLIC_API_URL}/assets/images/`;
+    const apiBaseUrl = getApiBaseUrl();
+    return `${apiBaseUrl || ''}/assets/images/`;
 }
 
 export function getCourseImage(coursePath, courseImage) {
@@ -294,7 +327,8 @@ export function getCourseImage(coursePath, courseImage) {
     }
 
 
-    return `${process.env.NEXT_PUBLIC_API_URL}/assets/images/default.png`;
+    const apiBaseUrl = getApiBaseUrl();
+    return `${apiBaseUrl || ''}/assets/images/default.png`;
 }
 
 
