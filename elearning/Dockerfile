@@ -70,7 +70,7 @@ fi
 php artisan config:cache || true
 php artisan view:cache || true
 
-php artisan migrate --force
+php artisan migrate --force || true
 
 cat > /tmp/router.php <<'PHP'
 <?php

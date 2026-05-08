@@ -1,6 +1,10 @@
 <?php
 use Illuminate\Support\Facades\Facade;
-require_once('timezone.php');
+$timezone = 'UTC';
+$timezoneFile = __DIR__ . '/timezone.php';
+if (is_file($timezoneFile)) {
+    require_once $timezoneFile;
+}
 return [
 
     /*
