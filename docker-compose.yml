@@ -3,20 +3,17 @@ services:
     image: mysql:8.1
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: elearning
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-root}
+      MYSQL_DATABASE: ${DB_DATABASE:-elearning}
       # Do not set MYSQL_USER to 'root' (MySQL 8.1 restriction)
       # To create a non-root user, set MYSQL_USER to a different name and MYSQL_PASSWORD.
     volumes:
       - dbdata:/var/lib/mysql
-    ports:
-      - "3306:3306"
+      - ./elearning/install/database.sql:/docker-entrypoint-initdb.d/01-database.sql:ro
 
   redis:
     image: redis:7
     restart: unless-stopped
-    ports:
-      - "6379:6379"
 
   backend:
     build:
@@ -24,17 +21,20 @@ services:
       dockerfile: Dockerfile
     working_dir: /var/www/html/core
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
-      APP_ENV: local
-      APP_DEBUG: 'true'
-      APP_URL: http://localhost:8000
+      APP_ENV: ${APP_ENV:-production}
+      APP_DEBUG: ${APP_DEBUG:-false}
+      APP_URL: ${APP_URL:-https://houseoftheelect.org}
+      ASSET_URL: ${ASSET_URL:-https://houseoftheelect.org}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-*}
+      SESSION_SECURE_COOKIE: ${SESSION_SECURE_COOKIE:-true}
       DB_CONNECTION: mysql
       DB_HOST: db
       DB_PORT: 3306
-      DB_DATABASE: elearning
+      DB_DATABASE: ${DB_DATABASE:-elearning}
       DB_USERNAME: root
-      DB_PASSWORD: root
+      DB_PASSWORD: ${DB_PASSWORD:-root}
       SESSION_DRIVER: database
       CACHE_STORE: database
       QUEUE_CONNECTION: database
@@ -45,29 +45,24 @@ services:
       - db
       - redis
     volumes:
-      - ./elearning:/var/www/html
-      - backend_vendor:/var/www/html/core/vendor
-      - backend_node_modules:/var/www/html/core/node_modules
+      - ./elearning/assets:/var/www/html/assets
+      - backend_storage:/var/www/html/core/storage
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    volumes:
-      - ./frontend:/usr/src/app
-      - frontend_node_modules:/usr/src/app/node_modules
     working_dir: /usr/src/app
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
-      NEXTAUTH_URL: http://localhost:3000
-      NEXTAUTH_SECRET: change-this-secret
-      NEXT_PUBLIC_API_URL: http://backend:8000/api
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-https://houseoftheelect.org}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-change-this-secret}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://houseoftheelect.org}
+      API_URL_INTERNAL: http://backend:8000
     depends_on:
       - backend
 
 volumes:
   dbdata:
-  backend_vendor:
-  backend_node_modules:
-  frontend_node_modules:
+  backend_storage:
