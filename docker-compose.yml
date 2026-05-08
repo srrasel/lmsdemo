@@ -20,6 +20,7 @@ services:
       context: ./elearning
       dockerfile: Dockerfile
     working_dir: /var/www/html/core
+    restart: unless-stopped
     ports:
       - "127.0.0.1:8000:8000"
     environment:
@@ -29,15 +30,16 @@ services:
       ASSET_URL: ${ASSET_URL:-https://houseoftheelect.org}
       TRUSTED_PROXIES: ${TRUSTED_PROXIES:-*}
       SESSION_SECURE_COOKIE: ${SESSION_SECURE_COOKIE:-true}
+      APP_KEY: ${APP_KEY:-}
       DB_CONNECTION: mysql
       DB_HOST: db
       DB_PORT: 3306
       DB_DATABASE: ${DB_DATABASE:-elearning}
       DB_USERNAME: root
       DB_PASSWORD: ${DB_PASSWORD:-root}
-      SESSION_DRIVER: database
-      CACHE_STORE: database
-      QUEUE_CONNECTION: database
+      SESSION_DRIVER: file
+      CACHE_STORE: file
+      QUEUE_CONNECTION: sync
       REDIS_CLIENT: phpredis
       REDIS_HOST: redis
       REDIS_PORT: 6379
@@ -52,7 +54,12 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://houseoftheelect.org}
+        NEXT_PUBLIC_SITE_TITLE: ${NEXT_PUBLIC_SITE_TITLE:-houseoftheelect}
+        NEXT_PUBLIC_AUTH_PREFIX: ${NEXT_PUBLIC_AUTH_PREFIX:-/}
     working_dir: /usr/src/app
+    restart: unless-stopped
     ports:
       - "127.0.0.1:3000:3000"
     environment:
