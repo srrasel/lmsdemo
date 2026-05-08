@@ -1,0 +1,114 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    working_dir: /var/www/html/core
+    ports:
+      - "127.0.0.1:8000:8000"
+    restart: unless-stopped
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      APP_DEBUG: ${APP_DEBUG:-"false"}
+      APP_URL: ${APP_URL:-https://houseoftheelect.org}
+      ASSET_URL: ${ASSET_URL:-https://houseoftheelect.org}
+      APP_KEY: ${APP_KEY}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-*}
+      SESSION_SECURE_COOKIE: ${SESSION_SECURE_COOKIE:-true}
+      DB_CONNECTION: mysql
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_DATABASE: ${DB_DATABASE:-elearning}
+      DB_USERNAME: ${DB_USERNAME:-root}
+      DB_PASSWORD: ${DB_PASSWORD:-root}
+    volumes:
+      - ./assets:/var/www/html/assets
+      - app_storage:/var/www/html/core/storage
+    depends_on:
+      - db
+    command:
+      - bash
+      - -lc
+      - |
+          if [ -z "${APP_KEY:-}" ]; then echo "APP_KEY is required"; exit 1; fi
+          ln -sfn /var/www/html/assets /var/www/html/core/assets
+          cat > /tmp/router.php <<'PHP'
+          <?php
+          $$path = parse_url($$_SERVER['REQUEST_URI'], PHP_URL_PATH) ?? '/';
+          $$file = '/var/www/html' . $$path;
+          
+          if ($$path !== '/' && is_file($$file)) {
+              $$ext = strtolower(pathinfo($$file, PATHINFO_EXTENSION));
+              $$allowed = [
+                  'css' => 'text/css; charset=UTF-8',
+                  'js' => 'application/javascript; charset=UTF-8',
+                  'map' => 'application/json; charset=UTF-8',
+                  'json' => 'application/json; charset=UTF-8',
+                  'png' => 'image/png',
+                  'jpg' => 'image/jpeg',
+                  'jpeg' => 'image/jpeg',
+                  'gif' => 'image/gif',
+                  'webp' => 'image/webp',
+                  'svg' => 'image/svg+xml',
+                  'woff2' => 'font/woff2',
+                  'woff' => 'font/woff',
+                  'ttf' => 'font/ttf',
+                  'otf' => 'font/otf',
+                  'eot' => 'application/vnd.ms-fontobject',
+              ];
+          
+              if (array_key_exists($$ext, $$allowed)) {
+                  $$real = realpath($$file);
+                  $$root = realpath('/var/www/html');
+          
+                  if ($$real && $$root && str_starts_with($$real, $$root . DIRECTORY_SEPARATOR) && is_file($$real)) {
+                      header('Content-Type: ' . $$allowed[$$ext]);
+          
+                      if (in_array($$ext, ['woff2', 'woff', 'ttf', 'otf', 'eot', 'svg'], true)) {
+                          header('Access-Control-Allow-Origin: *');
+                      }
+          
+                      readfile($$real);
+                      return true;
+                  }
+              }
+          }
+          
+          require "/var/www/html/index.php";
+          PHP
+          composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev
+          php artisan config:cache || true
+          php artisan view:cache || true
+          until php -r 'new PDO("mysql:host=db;port=3306;dbname=" . getenv("DB_DATABASE"), getenv("DB_USERNAME"), getenv("DB_PASSWORD"));' >/dev/null 2>&1; do echo waiting for mysql; sleep 2; done
+          php artisan migrate --force --path=database/migrations/2026_01_07_165703_create_donations_table.php --path=database/migrations/2026_01_07_165704_add_donation_id_to_deposits_table.php --path=database/migrations/2026_01_08_000000_create_faqs_table.php --path=database/migrations/2026_01_27_000000_create_menus_table.php --path=database/migrations/2026_01_27_000001_create_footer_menus_table.php --path=database/migrations/2026_02_01_000000_make_user_id_nullable_in_deposits.php
+          php -S 0.0.0.0:8000 -t /var/www/html /tmp/router.php
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    working_dir: /usr/src/app
+    ports:
+      - "127.0.0.1:3000:3000"
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://houseoftheelect.org}
+      API_URL_INTERNAL: http://app:8000
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-https://houseoftheelect.org}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+    depends_on:
+      - app
+
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE:-elearning}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-root}
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./install/database.sql:/docker-entrypoint-initdb.d/01-database.sql:ro
+
+volumes:
+  db_data:
+  app_storage:
