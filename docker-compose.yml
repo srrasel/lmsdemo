@@ -30,7 +30,6 @@ services:
       ASSET_URL: ${ASSET_URL:-https://houseoftheelect.org}
       TRUSTED_PROXIES: ${TRUSTED_PROXIES:-*}
       SESSION_SECURE_COOKIE: ${SESSION_SECURE_COOKIE:-true}
-      APP_KEY: ${APP_KEY:-}
       DB_CONNECTION: mysql
       DB_HOST: db
       DB_PORT: 3306
