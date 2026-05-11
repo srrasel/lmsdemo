@@ -54,14 +54,25 @@ class CourseController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:255',
-            'slug' => 'required|string|unique:courses,slug',
+            'slug' => 'nullable|string|unique:courses,slug',
         ]);
 
         if ($validator->fails()) return responseError('validation_error', $validator->errors());
 
+        $slug = $request->slug ?: slug($request->title);
+        if (!$request->slug) {
+            $baseSlug = $slug ?: 'course';
+            $slug = $baseSlug;
+            $i = 1;
+            while (Course::where('slug', $slug)->exists()) {
+                $i++;
+                $slug = $baseSlug . '-' . $i;
+            }
+        }
+
         $course = new Course();
         $course->title = $request->title;
-        $course->slug = $request->slug;
+        $course->slug = $slug;
         $course->instructor_id = auth()->user()->id;
 
         $course->save();

@@ -10,19 +10,31 @@ use App\Models\BookChapter;
 use App\Models\BookLesson;
 use App\Rules\FileTypeValidate;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Schema;
 
 class ManageBookController extends Controller
 {
     public function index()
     {
         $pageTitle = 'Manage Books';
-        $books = Book::with('category')->orderBy('id', 'desc')->paginate(getPaginate());
+        if (!Schema::hasTable('books') || !Schema::hasTable('book_categories')) {
+            $books = new LengthAwarePaginator([], 0, getPaginate(), 1, ['path' => request()->url(), 'query' => request()->query()]);
+            $notify[] = ['error', 'Book tables are missing. Please run database migrations.'];
+            session()->flash('notify', $notify);
+        } else {
+            $books = Book::with('category')->orderBy('id', 'desc')->paginate(getPaginate());
+        }
         return view('admin.book.index', compact('pageTitle', 'books'));
     }
 
     public function create()
     {
         $pageTitle = 'Create Book';
+        if (!Schema::hasTable('book_categories')) {
+            $notify[] = ['error', 'Book categories table is missing. Please run database migrations.'];
+            return to_route('admin.book.index')->withNotify($notify);
+        }
         $categories = BookCategory::active()->orderBy('name')->get();
         return view('admin.book.create', compact('pageTitle', 'categories'));
     }
@@ -125,7 +137,13 @@ class ManageBookController extends Controller
     public function categories()
     {
         $pageTitle = 'Manage Book Categories';
-        $categories = BookCategory::orderBy('id', 'desc')->paginate(getPaginate());
+        if (!Schema::hasTable('book_categories')) {
+            $categories = new LengthAwarePaginator([], 0, getPaginate(), 1, ['path' => request()->url(), 'query' => request()->query()]);
+            $notify[] = ['error', 'Book categories table is missing. Please run database migrations.'];
+            session()->flash('notify', $notify);
+        } else {
+            $categories = BookCategory::orderBy('id', 'desc')->paginate(getPaginate());
+        }
         return view('admin.book.category', compact('pageTitle', 'categories'));
     }
 

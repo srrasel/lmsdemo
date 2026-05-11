@@ -5,13 +5,20 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Menu;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 
 class MenuController extends Controller
 {
     public function index()
     {
         $pageTitle = 'Manage Header Menu';
-        $menus = Menu::orderBy('order')->get();
+        if (!Schema::hasTable('menus')) {
+            $menus = collect();
+            $notify[] = ['error', 'Menus table is missing. Please run database migrations.'];
+            session()->flash('notify', $notify);
+        } else {
+            $menus = Menu::orderBy('order')->get();
+        }
         return view('admin.menu.index', compact('pageTitle', 'menus'));
     }
 

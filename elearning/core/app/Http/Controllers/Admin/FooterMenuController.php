@@ -5,13 +5,20 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\FooterMenu;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 
 class FooterMenuController extends Controller
 {
     public function index()
     {
         $pageTitle = 'Manage Footer Menu';
-        $footerMenus = FooterMenu::orderBy('section_name')->orderBy('order')->get();
+        if (!Schema::hasTable('footer_menus')) {
+            $footerMenus = collect();
+            $notify[] = ['error', 'Footer menus table is missing. Please run database migrations.'];
+            session()->flash('notify', $notify);
+        } else {
+            $footerMenus = FooterMenu::orderBy('section_name')->orderBy('order')->get();
+        }
         return view('admin.footer_menu.index', compact('pageTitle', 'footerMenus'));
     }
 

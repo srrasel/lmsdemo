@@ -26,7 +26,14 @@ trait CourseManage
             return responseError('course_not_found', $notify);
         }
 
-        $validator = Validator::make($request->all(), [
+        $input = $request->all();
+        if (!$request->filled('slug')) {
+            $input['slug'] = $course->slug ?: (slug($request->title) ?: 'course');
+        } else {
+            $input['slug'] = $request->slug;
+        }
+
+        $validator = Validator::make($input, [
             'title' => 'required|string|max:255',
             'slug' => 'required|string|unique:courses,slug,' . $course->id,
             'subtitle' => 'required|string|max:255',
@@ -55,7 +62,7 @@ trait CourseManage
         }
 
         $course->title = $request->title;
-        $course->slug = $request->slug;
+        $course->slug = $input['slug'];
         $course->subtitle = $request->subtitle;
         $course->category_id = $category->id;
         $course->sub_category_id = $subCategory->id;
@@ -81,7 +88,12 @@ trait CourseManage
         }
 
 
-        $course->save();
+        try {
+            $course->save();
+        } catch (\Throwable $th) {
+            $notify[] = ['error', 'Failed to save course content'];
+            return responseError('course_content_save_error', $notify);
+        }
 
         $notify[] = 'Course content save successfully';
         return responseSuccess('course_content', $notify, [

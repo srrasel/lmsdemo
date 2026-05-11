@@ -7,20 +7,32 @@ use App\Http\Controllers\Controller;
 use App\Models\Blog;
 use App\Models\BlogCategory;
 use App\Rules\FileTypeValidate;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 
 class ManageBlogController extends Controller
 {
     public function index()
     {
         $pageTitle = 'Manage Blogs';
-        $blogs = Blog::with('category')->searchable(['title', 'category:name'])->orderBy('id', 'desc')->paginate(getPaginate());
+        if (!Schema::hasTable('blogs') || !Schema::hasTable('blog_categories')) {
+            $blogs = new LengthAwarePaginator([], 0, getPaginate(), 1, ['path' => request()->url(), 'query' => request()->query()]);
+            $notify[] = ['error', 'Blog tables are missing. Please run database migrations.'];
+            session()->flash('notify', $notify);
+        } else {
+            $blogs = Blog::with('category')->searchable(['title', 'category:name'])->orderBy('id', 'desc')->paginate(getPaginate());
+        }
         return view('admin.blog.index', compact('pageTitle', 'blogs'));
     }
 
     public function create()
     {
         $pageTitle = 'Create Blog';
+        if (!Schema::hasTable('blog_categories')) {
+            $notify[] = ['error', 'Blog categories table is missing. Please run database migrations.'];
+            return to_route('admin.blog.index')->withNotify($notify);
+        }
         $categories = BlogCategory::active()->get();
         return view('admin.blog.create', compact('pageTitle', 'categories'));
     }
@@ -101,7 +113,13 @@ class ManageBlogController extends Controller
     public function categories()
     {
         $pageTitle = 'Blog Categories';
-        $categories = BlogCategory::searchable(['name'])->orderBy('id', 'desc')->paginate(getPaginate());
+        if (!Schema::hasTable('blog_categories')) {
+            $categories = new LengthAwarePaginator([], 0, getPaginate(), 1, ['path' => request()->url(), 'query' => request()->query()]);
+            $notify[] = ['error', 'Blog categories table is missing. Please run database migrations.'];
+            session()->flash('notify', $notify);
+        } else {
+            $categories = BlogCategory::searchable(['name'])->orderBy('id', 'desc')->paginate(getPaginate());
+        }
         return view('admin.blog.category', compact('pageTitle', 'categories'));
     }
 
